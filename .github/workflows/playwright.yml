@@ -1,8 +1,9 @@
 # ==============================================================================
 # SauceDemo POM Framework - CI/CD Pipeline
 # ==============================================================================
-# Runs the full Playwright test suite on push/PR to main, uploads the HTML
-# report as a build artifact, and deploys it to GitHub Pages.
+# Runs lint checks and the full Playwright test suite across multiple browsers
+# on push/PR to main (or manual dispatch). Uploads the HTML report as a build
+# artifact and deploys it to GitHub Pages.
 # ==============================================================================
 
 name: Playwright Tests
@@ -12,6 +13,22 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Browser to test (leave empty for all)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - chromium
+          - firefox
+          - webkit
+      retries:
+        description: 'Number of retries for flaky tests'
+        required: false
+        default: '2'
+        type: string
 
 # Grant GITHUB_TOKEN permissions for GitHub Pages deployment
 permissions:
@@ -19,11 +36,45 @@ permissions:
   pages: write
   id-token: write
 
+# Cancel in-progress runs for the same branch/PR to save resources
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # ── Lint & Type Check ──────────────────────────────────────────────────────
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type check
+        run: npm run lint
+
+  # ── E2E Tests (Matrix: Chromium, Firefox, WebKit) ──────────────────────────
   test:
-    name: Run E2E Tests
+    name: Test (${{ matrix.browser }})
+    needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
 
     steps:
       # ── Setup ──
@@ -39,12 +90,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps
 
+      - name: Install Playwright OS dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps
+
       # ── Test Execution ──
-      - name: Run Playwright tests
-        run: npx playwright test
+      - name: Run Playwright tests (${{ matrix.browser }})
+        run: npx playwright test --project=${{ matrix.browser }} ${{ github.event.inputs.retries && format('--retries={0}', github.event.inputs.retries) || '' }}
         env:
           CI: true
 
@@ -53,23 +118,51 @@ jobs:
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 30
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+        if: ${{ failure() }}
         with:
-          name: test-results
+          name: test-results-${{ matrix.browser }}
           path: test-results/
+          retention-days: 14
+
+  # ── Merge Reports ──────────────────────────────────────────────────────────
+  merge-reports:
+    name: Merge & Publish Reports
+    needs: test
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: playwright-report-*
+          path: all-reports/
+
+      - name: Merge reports into single directory
+        run: |
+          mkdir -p merged-report
+          for dir in all-reports/playwright-report-*/; do
+            cp -rn "$dir"* merged-report/ 2>/dev/null || true
+          done
+
+      - name: Upload merged report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-merged
+          path: merged-report/
           retention-days: 30
 
-  # ── GitHub Pages Deployment ──
+  # ── GitHub Pages Deployment ────────────────────────────────────────────────
   deploy-report:
     name: Deploy Report to GitHub Pages
-    needs: test
-    if: github.ref == 'refs/heads/main' && always()
+    needs: merge-reports
+    if: github.ref == 'refs/heads/main' && !cancelled()
     runs-on: ubuntu-latest
 
     environment:
@@ -77,10 +170,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Download HTML report
+      - name: Download merged report
         uses: actions/download-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-merged
           path: playwright-report/
 
       - name: Setup Pages
