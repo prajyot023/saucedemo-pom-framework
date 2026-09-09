@@ -1,0 +1,20 @@
+# ==============================================================================
+# SauceDemo POM Framework - Docker Compose
+# ==============================================================================
+# One-command test execution: docker-compose up --build
+# ==============================================================================
+
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - CI=true
+    volumes:
+      # Mount report directory so results are available on the host
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results
+    # Override the default command to run tests and generate the report
+    command: >
+      sh -c "npx playwright test && echo '✅ Tests completed. Report available at ./playwright-report/index.html'"

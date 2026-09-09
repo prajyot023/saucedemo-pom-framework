@@ -1,0 +1,38 @@
+{
+  "single_item": {
+    "description": "Single product checkout",
+    "products": ["Sauce Labs Backpack"],
+    "expectedSubtotal": 29.99
+  },
+  "two_items": {
+    "description": "Two products checkout",
+    "products": ["Sauce Labs Backpack", "Sauce Labs Bike Light"],
+    "expectedSubtotal": 39.98
+  },
+  "three_items": {
+    "description": "Three products checkout",
+    "products": [
+      "Sauce Labs Backpack",
+      "Sauce Labs Bolt T-Shirt",
+      "Sauce Labs Onesie"
+    ],
+    "expectedSubtotal": 53.97
+  },
+  "expensive_items": {
+    "description": "High-value products checkout",
+    "products": ["Sauce Labs Fleece Jacket", "Sauce Labs Backpack"],
+    "expectedSubtotal": 79.98
+  },
+  "all_items": {
+    "description": "All products checkout",
+    "products": [
+      "Sauce Labs Backpack",
+      "Sauce Labs Bike Light",
+      "Sauce Labs Bolt T-Shirt",
+      "Sauce Labs Fleece Jacket",
+      "Sauce Labs Onesie",
+      "Test.allTheThings() T-Shirt (Red)"
+    ],
+    "expectedSubtotal": 129.94
+  }
+}

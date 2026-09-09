@@ -1,0 +1,41 @@
+{
+  "valid_user": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "postalCode": "90210",
+    "isValid": true,
+    "description": "Valid checkout information"
+  },
+  "missing_first_name": {
+    "firstName": "",
+    "lastName": "Doe",
+    "postalCode": "90210",
+    "isValid": false,
+    "expectedError": "Error: First Name is required",
+    "description": "Missing first name"
+  },
+  "missing_last_name": {
+    "firstName": "John",
+    "lastName": "",
+    "postalCode": "90210",
+    "isValid": false,
+    "expectedError": "Error: Last Name is required",
+    "description": "Missing last name"
+  },
+  "missing_postal_code": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "postalCode": "",
+    "isValid": false,
+    "expectedError": "Error: Postal Code is required",
+    "description": "Missing postal code"
+  },
+  "all_empty": {
+    "firstName": "",
+    "lastName": "",
+    "postalCode": "",
+    "isValid": false,
+    "expectedError": "Error: First Name is required",
+    "description": "All fields empty"
+  }
+}
